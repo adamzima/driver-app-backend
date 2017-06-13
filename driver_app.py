@@ -8,6 +8,7 @@ from keras.models import model_from_json
 from sklearn.metrics import mean_squared_error
 import collections
 import numpy
+import time
 
 
 MODEL_FILENAME = 'model.json'
@@ -15,6 +16,7 @@ MODEL_WEIGHTS_FILENAME = 'model.h5'
 LOOK_BACK = 5
 MIN_VALUE, MAX_VALUE = -15, 15
 ERROR_THRESHOLD = 0.01
+ANOMALY_COOLDOWN = 4 # seconds
 
 app = Flask(__name__)
 sockets = Sockets(app)
@@ -23,13 +25,19 @@ sockets = Sockets(app)
 @sockets.route('/')
 def echo_socket(ws):
     ad = AnomalyDetector()
+    timestamp = None
     while not ws.closed:
         message = json.loads(ws.receive())
-        if ('start' in message) and message['start'] == True:
-            ad = AnomalyDetector()
+        if timestamp:
+            if time.time() - timestamp > ANOMALY_COOLDOWN:
+                timestamp = None
+                ws.send(json.dumps({ anomaly: True }))
+            continue
         print "-> Got message:", message
         result = ad.process_sample(message)
         print "<- Sending result:", result
+        if result['anomaly']:
+            timestamp = time.time()
         ws.send(json.dumps(result))
 
 class AnomalyDetector(object):
