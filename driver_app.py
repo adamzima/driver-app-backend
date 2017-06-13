@@ -25,6 +25,8 @@ def echo_socket(ws):
     ad = AnomalyDetector()
     while not ws.closed:
         message = json.loads(ws.receive())
+        if ('start' in message) and message['start'] == True:
+            ad = AnomalyDetector()
         print "-> Got message:", message
         result = ad.process_sample(message)
         print "<- Sending result:", result
